@@ -15,16 +15,31 @@ export interface PullRequest {
   agent: string;
 }
 
-export interface HFRow {
-  row_idx: number;
-  row: PullRequest;
-  truncated_cells: string[];
+export interface PaginatedResponse {
+  total: number;
+  page: number;
+  limit: number;
+  rows: PullRequest[];
 }
 
-export interface HFResponse {
-  dataset: string;
-  config: string;
-  split: string;
-  features: { feature_idx: number; name: string; type: object }[];
-  rows: HFRow[];
+export interface Stats {
+  total: number;
+  open: number;
+  closed: number;
+  merged: number;
+}
+
+export interface ByAgentItem {
+  agent: string;
+  count: number;
+}
+
+export interface ByStateItem {
+  name: string;
+  value: number;
+}
+
+export interface OverTimeItem {
+  month: string;
+  count: number;
 }

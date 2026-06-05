@@ -1,124 +1,113 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { HttpService } from '@nestjs/axios';
-import { ConfigService } from '@nestjs/config';
-import { firstValueFrom } from 'rxjs';
-import * as fs from 'fs/promises';
+import * as fs from 'fs';
 import * as path from 'path';
+import Database from 'better-sqlite3';
 
-const BASE_URL =
-  'https://datasets-server.huggingface.co/rows?dataset=hao-li%2FAIDev&config=all_pull_request&split=train';
-const PAGE_SIZE = 100;
-const REQUEST_DELAY_MS = 300;
-const CACHE_PATH = path.join(process.cwd(), 'cache', 'pull-requests.json');
-
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const DB_PATH = path.join(process.cwd(), 'cache', 'pull-requests.db');
 
 @Injectable()
 export class PullRequestsService implements OnModuleInit {
   private readonly logger = new Logger(PullRequestsService.name);
-  private readonly headers: Record<string, string>;
-  private cache: any[] | null = null;
+  private db: Database.Database | null = null;
 
-  constructor(
-    private readonly http: HttpService,
-    private readonly config: ConfigService,
-  ) {
-    this.headers = {
-      Authorization: `Bearer ${this.config.get<string>('HF_TOKEN')}`,
-    };
-  }
-
-  async onModuleInit() {
-    try {
-      await this.loadOrFetch();
-    } catch (err) {
-      this.logger.error('Failed to load data on startup', err);
-    }
-  }
-
-  private async loadOrFetch() {
-    try {
-      const file = await fs.readFile(CACHE_PATH, 'utf-8');
-      this.cache = JSON.parse(file);
-      this.logger.log(`Loaded ${this.cache!.length} rows from disk cache`);
-    } catch {
-      this.logger.log('No cache found, fetching from Hugging Face...');
-      await this.fetchAndCache();
-    }
-  }
-
-  private async fetchTotal(): Promise<number> {
-    const { data } = await firstValueFrom(
-      this.http.get(
-        'https://datasets-server.huggingface.co/size?dataset=hao-li%2FAIDev&config=all_pull_request&split=train',
-        { headers: this.headers },
-      ),
-    );
-    return data.size.splits[0].num_rows;
-  }
-
-  private async fetchPage(offset: number, attempt = 0): Promise<any[]> {
-    try {
-      const { data } = await firstValueFrom(
-        this.http.get(`${BASE_URL}&offset=${offset}&length=${PAGE_SIZE}`, {
-          headers: this.headers,
-        }),
+  onModuleInit() {
+    if (!fs.existsSync(DB_PATH)) {
+      this.logger.error(
+        `Database not found at ${DB_PATH}. Run scripts/build_db.py to create it.`,
       );
-      return data.rows;
-    } catch (err: any) {
-      if (err?.response?.status === 429) {
-        const retryAfter = err?.response?.headers?.['retry-after'];
-        const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : 60_000;
-        this.logger.warn(
-          `429 at offset ${offset}, retrying in ${waitMs}ms...`,
-        );
-        await delay(waitMs);
-        return this.fetchPage(offset, attempt);
-      }
-
-      if (err?.response?.status === 500 && attempt < 3) {
-        const waitMs = 2000 * (attempt + 1);
-        this.logger.warn(
-          `500 at offset ${offset}, retry ${attempt + 1} in ${waitMs}ms...`,
-        );
-        await delay(waitMs);
-        return this.fetchPage(offset, attempt + 1);
-      }
-
-      throw err;
+      return;
     }
+    this.db = new Database(DB_PATH, { readonly: true });
+    const row = this.db
+      .prepare('SELECT COUNT(*) as c FROM pull_requests')
+      .get() as { c: number };
+    this.logger.log(`Opened database with ${row.c.toLocaleString()} rows`);
   }
 
-  private async fetchAndCache() {
-    const total = await this.fetchTotal();
-    this.logger.log(`Dataset has ${total} rows`);
-    const allRows: any[] = [];
-    const totalPages = Math.ceil(total / PAGE_SIZE);
-
-    for (let page = 0; page < totalPages; page++) {
-      const offset = page * PAGE_SIZE;
-      const rows = await this.fetchPage(offset);
-      allRows.push(...rows);
-
-      if ((page + 1) % 10 === 0) {
-        this.logger.log(`Fetched ${allRows.length} / ${total} rows`);
-      }
-
-      if (page < totalPages - 1) await delay(REQUEST_DELAY_MS);
-    }
-
-    await fs.mkdir(path.dirname(CACHE_PATH), { recursive: true });
-    await fs.writeFile(CACHE_PATH, JSON.stringify(allRows));
-    this.cache = allRows;
-    this.logger.log(`Done — cached ${allRows.length} rows to disk`);
+  getRows(page: number, limit: number) {
+    if (!this.db) return { total: 0, page, limit, rows: [] };
+    const offset = (page - 1) * limit;
+    const rows = this.db
+      .prepare(
+        `SELECT id, number, title, user, user_id, state,
+                created_at, closed_at, merged_at,
+                repo_url, repo_id, html_url, body, agent
+         FROM pull_requests
+         ORDER BY created_at DESC
+         LIMIT ? OFFSET ?`,
+      )
+      .all(limit, offset);
+    const { total } = this.db
+      .prepare('SELECT COUNT(*) as total FROM pull_requests')
+      .get() as { total: number };
+    return { total, page, limit, rows };
   }
 
-  getData() {
-    return {
-      dataset: 'hao-li/AIDev',
-      config: 'all_pull_request',
-      split: 'train',
-      rows: this.cache ?? [],
-    };
+  getStats() {
+    if (!this.db) return { total: 0, open: 0, closed: 0, merged: 0 };
+    const { total } = this.db
+      .prepare('SELECT COUNT(*) as total FROM pull_requests')
+      .get() as { total: number };
+    const { open } = this.db
+      .prepare(
+        "SELECT COUNT(*) as open FROM pull_requests WHERE state = 'open'",
+      )
+      .get() as { open: number };
+    const { closed } = this.db
+      .prepare(
+        "SELECT COUNT(*) as closed FROM pull_requests WHERE state = 'closed'",
+      )
+      .get() as { closed: number };
+    const { merged } = this.db
+      .prepare(
+        'SELECT COUNT(*) as merged FROM pull_requests WHERE merged_at IS NOT NULL',
+      )
+      .get() as { merged: number };
+    return { total, open, closed, merged };
+  }
+
+  getByAgent() {
+    if (!this.db) return [];
+    return this.db
+      .prepare(
+        'SELECT agent, COUNT(*) as count FROM pull_requests GROUP BY agent ORDER BY count ASC',
+      )
+      .all();
+  }
+
+  getByState() {
+    if (!this.db) return [];
+    const { open } = this.db
+      .prepare(
+        "SELECT COUNT(*) as open FROM pull_requests WHERE state = 'open'",
+      )
+      .get() as { open: number };
+    const { merged } = this.db
+      .prepare(
+        'SELECT COUNT(*) as merged FROM pull_requests WHERE merged_at IS NOT NULL',
+      )
+      .get() as { merged: number };
+    const { closedOnly } = this.db
+      .prepare(
+        "SELECT COUNT(*) as closedOnly FROM pull_requests WHERE state = 'closed' AND merged_at IS NULL",
+      )
+      .get() as { closedOnly: number };
+    return [
+      { name: 'Open', value: open },
+      { name: 'Closed', value: closedOnly },
+      { name: 'Merged', value: merged },
+    ];
+  }
+
+  getOverTime() {
+    if (!this.db) return [];
+    return this.db
+      .prepare(
+        `SELECT substr(created_at, 1, 7) as month, COUNT(*) as count
+         FROM pull_requests
+         GROUP BY month
+         ORDER BY month`,
+      )
+      .all();
   }
 }

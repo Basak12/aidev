@@ -1,3 +1,6 @@
 node_modules
 dist
 .env
+cache/pull-requests.json
+cache/pull-requests.db
+cache/pull-requests.db-journal

@@ -25,9 +25,13 @@
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/stream-json": "^1.7.8",
     "axios": "^1.17.0",
+    "better-sqlite3": "^12.10.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "stream-json": "^3.3.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
