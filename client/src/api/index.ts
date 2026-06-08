@@ -5,9 +5,11 @@ import type {
   ByAgentItem,
   ByStateItem,
   OverTimeItem,
+  CodeReviewStats,
+  CodeQualityStats,
 } from '../model';
 
-const apiClient = axios.create({ baseURL: 'http://localhost:3001/api' });
+const apiClient = axios.create({ baseURL: '/api' });
 
 export const fetchPullRequests = (page = 1, limit = 25): Promise<PaginatedResponse> =>
   apiClient
@@ -25,3 +27,15 @@ export const fetchByState = (): Promise<ByStateItem[]> =>
 
 export const fetchOverTime = (): Promise<OverTimeItem[]> =>
   apiClient.get<OverTimeItem[]>('/pull-requests/over-time').then((r) => r.data);
+
+export const fetchCodeReviewStats = (): Promise<CodeReviewStats> =>
+  apiClient.get<CodeReviewStats>('/pull-requests/code-review-stats').then((r) => r.data);
+
+export const fetchCodeReviewRows = (page = 1, limit = 25): Promise<PaginatedResponse> =>
+  apiClient.get<PaginatedResponse>('/pull-requests/code-review-rows', { params: { page, limit } }).then((r) => r.data);
+
+export const fetchCodeQualityStats = (): Promise<CodeQualityStats> =>
+  apiClient.get<CodeQualityStats>('/pull-requests/code-quality-stats').then((r) => r.data);
+
+export const fetchCodeQualityRows = (page = 1, limit = 25): Promise<PaginatedResponse> =>
+  apiClient.get<PaginatedResponse>('/pull-requests/code-quality-rows', { params: { page, limit } }).then((r) => r.data);

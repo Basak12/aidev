@@ -110,4 +110,166 @@ export class PullRequestsService implements OnModuleInit {
       )
       .all();
   }
+
+  getCodeQualityRows(page: number, limit: number) {
+    if (!this.db) return { total: 0, page, limit, rows: [] };
+    const offset = (page - 1) * limit;
+    const rows = this.db
+      .prepare(
+        `SELECT id, number, title, user, user_id, state,
+                created_at, closed_at, merged_at,
+                repo_url, repo_id, html_url, body, agent
+         FROM pull_requests
+         WHERE lower(title) LIKE '%quality%'
+         ORDER BY created_at DESC
+         LIMIT ? OFFSET ?`,
+      )
+      .all(limit, offset);
+    const { total } = this.db
+      .prepare(
+        "SELECT COUNT(*) as total FROM pull_requests WHERE lower(title) LIKE '%quality%'",
+      )
+      .get() as { total: number };
+    return { total, page, limit, rows };
+  }
+
+  getCodeQualityStats() {
+    if (!this.db)
+      return { total: 0, mergeRate: 0, byAgent: [], byState: [], overTime: [] };
+
+    const { total } = this.db
+      .prepare(
+        "SELECT COUNT(*) as total FROM pull_requests WHERE lower(title) LIKE '%quality%'",
+      )
+      .get() as { total: number };
+
+    const { merged } = this.db
+      .prepare(
+        "SELECT COUNT(*) as merged FROM pull_requests WHERE lower(title) LIKE '%quality%' AND merged_at IS NOT NULL",
+      )
+      .get() as { merged: number };
+
+    const { open } = this.db
+      .prepare(
+        "SELECT COUNT(*) as open FROM pull_requests WHERE lower(title) LIKE '%quality%' AND state = 'open'",
+      )
+      .get() as { open: number };
+
+    const { closedOnly } = this.db
+      .prepare(
+        "SELECT COUNT(*) as closedOnly FROM pull_requests WHERE lower(title) LIKE '%quality%' AND state = 'closed' AND merged_at IS NULL",
+      )
+      .get() as { closedOnly: number };
+
+    const byAgent = this.db
+      .prepare(
+        "SELECT agent, COUNT(*) as count FROM pull_requests WHERE lower(title) LIKE '%quality%' GROUP BY agent ORDER BY count DESC",
+      )
+      .all();
+
+    const overTime = this.db
+      .prepare(
+        `SELECT substr(created_at, 1, 7) as month, COUNT(*) as count
+         FROM pull_requests
+         WHERE lower(title) LIKE '%quality%'
+         GROUP BY month
+         ORDER BY month`,
+      )
+      .all();
+
+    const mergeRate = total > 0 ? Math.round((merged / total) * 100) : 0;
+
+    return {
+      total,
+      mergeRate,
+      byAgent,
+      byState: [
+        { name: 'Merged', value: merged },
+        { name: 'Closed', value: closedOnly },
+        { name: 'Open', value: open },
+      ],
+      overTime,
+    };
+  }
+
+  getCodeReviewRows(page: number, limit: number) {
+    if (!this.db) return { total: 0, page, limit, rows: [] };
+    const offset = (page - 1) * limit;
+    const rows = this.db
+      .prepare(
+        `SELECT id, number, title, user, user_id, state,
+                created_at, closed_at, merged_at,
+                repo_url, repo_id, html_url, body, agent
+         FROM pull_requests
+         WHERE lower(title) LIKE '%review%'
+         ORDER BY created_at DESC
+         LIMIT ? OFFSET ?`,
+      )
+      .all(limit, offset);
+    const { total } = this.db
+      .prepare(
+        "SELECT COUNT(*) as total FROM pull_requests WHERE lower(title) LIKE '%review%'",
+      )
+      .get() as { total: number };
+    return { total, page, limit, rows };
+  }
+
+  getCodeReviewStats() {
+    if (!this.db)
+      return { total: 0, mergeRate: 0, byAgent: [], byState: [], overTime: [] };
+
+    const { total } = this.db
+      .prepare(
+        "SELECT COUNT(*) as total FROM pull_requests WHERE lower(title) LIKE '%review%'",
+      )
+      .get() as { total: number };
+
+    const { merged } = this.db
+      .prepare(
+        "SELECT COUNT(*) as merged FROM pull_requests WHERE lower(title) LIKE '%review%' AND merged_at IS NOT NULL",
+      )
+      .get() as { merged: number };
+
+    const { open } = this.db
+      .prepare(
+        "SELECT COUNT(*) as open FROM pull_requests WHERE lower(title) LIKE '%review%' AND state = 'open'",
+      )
+      .get() as { open: number };
+
+    const { closedOnly } = this.db
+      .prepare(
+        "SELECT COUNT(*) as closedOnly FROM pull_requests WHERE lower(title) LIKE '%review%' AND state = 'closed' AND merged_at IS NULL",
+      )
+      .get() as { closedOnly: number };
+
+    const byAgent = this.db
+      .prepare(
+        "SELECT agent, COUNT(*) as count FROM pull_requests WHERE lower(title) LIKE '%review%' GROUP BY agent ORDER BY count DESC",
+      )
+      .all();
+
+    const overTime = this.db
+      .prepare(
+        `SELECT substr(created_at, 1, 7) as month, COUNT(*) as count
+         FROM pull_requests
+         WHERE lower(title) LIKE '%review%'
+         GROUP BY month
+         ORDER BY month`,
+      )
+      .all();
+
+    const mergeRate = total > 0 ? Math.round((merged / total) * 100) : 0;
+
+    return {
+      total,
+      mergeRate,
+      byAgent,
+      byState: [
+        { name: 'Merged', value: merged },
+        { name: 'Closed', value: closedOnly },
+        { name: 'Open', value: open },
+      ],
+      overTime,
+    };
+  }
 }

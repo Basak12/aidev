@@ -43,3 +43,19 @@ export interface OverTimeItem {
   month: string;
   count: number;
 }
+
+export interface CodeReviewStats {
+  total: number;
+  mergeRate: number;
+  byAgent: ByAgentItem[];
+  byState: ByStateItem[];
+  overTime: OverTimeItem[];
+}
+
+export interface CodeQualityStats {
+  total: number;
+  mergeRate: number;
+  byAgent: ByAgentItem[];
+  byState: ByStateItem[];
+  overTime: OverTimeItem[];
+}

@@ -1,8 +1,12 @@
 import dashboardRoutes from './dashboardRoutes';
 import pullRequestRoutes from './pullRequestRoutes';
+import codeReviewRoutes from './codeReviewRoutes';
+import codeQualityRoutes from './codeQualityRoutes';
 
 const routeItems = {
     dashboardRoutes,
-    pullRequestRoutes
+    pullRequestRoutes,
+    codeReviewRoutes,
+    codeQualityRoutes,
 }
 export default routeItems;

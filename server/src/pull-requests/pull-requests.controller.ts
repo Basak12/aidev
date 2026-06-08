@@ -25,6 +25,32 @@ export class PullRequestsController {
     return this.service.getOverTime();
   }
 
+  @Get('code-quality-stats')
+  getCodeQualityStats() {
+    return this.service.getCodeQualityStats();
+  }
+
+  @Get('code-quality-rows')
+  getCodeQualityRows(
+    @Query('page') page = '1',
+    @Query('limit') limit = '25',
+  ) {
+    return this.service.getCodeQualityRows(parseInt(page), parseInt(limit));
+  }
+
+  @Get('code-review-stats')
+  getCodeReviewStats() {
+    return this.service.getCodeReviewStats();
+  }
+
+  @Get('code-review-rows')
+  getCodeReviewRows(
+    @Query('page') page = '1',
+    @Query('limit') limit = '25',
+  ) {
+    return this.service.getCodeReviewRows(parseInt(page), parseInt(limit));
+  }
+
   @Get()
   getRows(
     @Query('page') page = '1',
